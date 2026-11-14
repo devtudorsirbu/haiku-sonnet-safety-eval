@@ -1,0 +1,5 @@
+.venv/
+.env
+__pycache__/
+*.batch.json
+.DS_Store
