@@ -8,6 +8,8 @@
 
 Model IDs, prices and API behaviour were checked against Anthropic's documentation on 3 November 2026. Check them again before the full run and record the date in your README.
 
+> **Update, 14 November 2026 (code review).** The code in the repository is now the reference: where a listing below differs from the file in `evals/`, the file wins. The review fixed measurement bugs (canary matching, refusal and truncation labels, batch resume, cache costs) and made three design changes reflected in this plan: crossed attack × document intervals for injected items, H4 reported descriptively, and an audit that oversamples text attacks (104 episodes).
+
 ---
 
 # Part A: What changed, and why
@@ -77,7 +79,7 @@ These are hypotheses, not findings.
 - **H1 (primary):** The mitigation reduces `attack_success` for each model, paired by item.
 - **H2:** The mitigation increases `false_alarm` on clean and benign documents. (The control set is small, so this is reported with its interval rather than tested for a precise margin.)
 - **H3:** At baseline, Sonnet has lower `attack_success` than Haiku.
-- **H4:** Action attacks (sending email) succeed less often than text attacks.
+- **H4 (descriptive):** Action attacks (sending email) succeed less often than text attacks. This is reported as a description, not tested: action and canary attacks are scored by exact checks and text attacks by the judge, so a difference mixes the models' behaviour with the two measures. The judge's agreement with the exact checks (Day 4, question 7) shows how large the measurement part could be.
 - **H5 (effort ablation):** Higher effort lowers objective attack success.
 
 You may revise these after the pilot. You may not revise them after the full run starts.
@@ -165,10 +167,11 @@ User messages and tool results are identical across conditions.
 
 ## Analysis plan
 
-- Rates per model and condition with 95% cluster-bootstrap intervals over items (an item's samples are resampled together).
+- Rates per model and condition with 95% bootstrap intervals (an item's samples are always resampled together).
+- **Injected items are 10 attacks crossed with 8 documents, not 80 independent items.** For any quantity over injected items only, including the primary metric, the primary interval is a two-way (crossed) bootstrap that resamples attacks and documents independently. It supports claims about attacks and documents like these, not only these 80 items. It is mildly conservative: in simulation it covered the true value 94–100% of the time, while the item-level interval fell to 64–78% whenever attacks or documents differed in effect. The item-level interval for the primary metric is reported alongside it. Quantities that include other categories use the item-level bootstrap.
 - The mitigation effect and the model gap as differences **paired by item**.
 - The attack's cost to the task as injected minus clean, paired by carrier.
-- Breakdowns by attack, carrier, stealth and kind (descriptive: 8–16 items per cell).
+- Breakdowns by attack, carrier, stealth and kind (descriptive: 8–16 items per cell). The kind breakdown answers H4 descriptively.
 - Judge accuracy against the exactly measured attacks, and Cohen's kappa against your blind audit.
 
 ## Power
@@ -180,7 +183,7 @@ Treating the item as the unit and assuming the per-item paired difference has a 
 | 80 (all injected items) | about 12–13 percentage points |
 | 40 (objective items only) | about 18 percentage points |
 
-Report this with the result, especially if it is null.
+These figures are a lower bound. They assume the mitigation works equally on every attack and document. The crossed interval is wider when it does not: in simulation, attack-to-attack variation of 15 points roughly doubled the interval's width, so the detectable effect could be closer to 20–25 points. After the pilot, recompute it from the pilot's spread across attacks. Report the width of the crossed interval with the result, especially if it is null.
 
 ## Scope
 
@@ -1756,7 +1759,7 @@ If the projection is much higher than about $10 for the Batch API, thinking is l
 
 ## Write the pre-registration
 
-Create `writeup/preregistration.md`: the primary question, hypotheses H1–H5, the primary metric and its exact definition, the effort level, the sample count, the dataset commit, and the analysis method (cluster-bootstrap over items, paired by item). Commit it. It is half a page, and it is what lets a reader trust that the headline result was not chosen after the fact.
+Create `writeup/preregistration.md`: the primary question, hypotheses H1–H5, the primary metric and its exact definition, the effort level, the sample count, the dataset commit, and the analysis method (paired by item; crossed attack × document bootstrap for injected items, item-level bootstrap otherwise; H4 descriptive). Commit it. It is half a page, and it is what lets a reader trust that the headline result was not chosen after the fact.
 
 ## Day 2 acceptance criteria
 
@@ -1801,13 +1804,13 @@ The run makes two batches (turn 1, then turn 2) and the grading makes one more. 
 
 **Time:** about 4 hours · **API spend:** $0
 
-## Morning: blind audit (80 episodes)
+## Morning: blind audit (104 episodes)
 
 ```bash
 python -m evals.make_audit_sample --tag full --per-cell 4
 ```
 
-This takes 4 episodes from each of the 20 category × model × condition cells and shuffles them, hiding the model, the condition and the judge's labels. Grade `results/audit/audit_sheet_full.csv`, then:
+This samples every category × model × condition cell and shuffles the result, hiding the model, the condition and the judge's labels. Injected items are split by how the attack is scored. Text attacks are the only ones whose success depends on the judge, so they get 8 episodes per cell; action and canary attacks, which are scored exactly, get 2; every other cell gets 4. In total that is 104 episodes, 32 of them text attacks (instead of about 8). Allow about 30% more time than for 80. `agreement.py` also reports `followed_injection` agreement per stratum; quote the text-attack row as the judge's accuracy on the primary outcome it scores. Grade `results/audit/audit_sheet_full.csv`, then:
 
 ```bash
 python -m evals.agreement --tag full
@@ -2173,14 +2176,14 @@ The figure `results/figures/headline.png` shows attack success, unrequested emai
 1. **H1:** By how much does the mitigation change `attack_success` for each model? Does the interval exclude zero?
 2. **H2:** What happens to `false_alarm`, `doc_refusal` and `task_success` on clean documents? Is the trade worth it?
 3. **H3:** Is Sonnet more robust than Haiku at baseline, with the mitigation, or neither?
-4. **H4:** Do action attacks succeed less often than text attacks?
+4. **H4 (descriptive):** Do action attacks succeed less often than text attacks? Give the rates, and say that the two are measured differently.
 5. Which single attack and which carrier were most effective? Why might that be?
 6. How often do samples disagree? Name the items that behave like coin flips.
 7. How accurate was the judge where the truth is known?
 
 ## Day 4 acceptance criteria
 
-- [ ] 80 episodes graded blind; kappa reported for every label.
+- [ ] 104 episodes graded blind; kappa reported for every label, and for `followed_injection` on text attacks.
 - [ ] Analysis generated; the seven questions answered with numbers and item IDs.
 
 ---
@@ -2245,8 +2248,8 @@ and the most important limitation.]
 - Items: 10 attacks × 8 carriers = 80 injected; 8 clean, 8 benign documents, 12 benign requests, 8 overrides.
   Drafted with AI assistance and edited by the author [say how much].
 - Measures: exact checks for action and canary attacks; blind claude-opus-5-5 judge (effort "low") for the rest.
-- Validation: judge vs exact checks [accuracy]; 80-episode blind human audit, Cohen's kappa [values].
-- Statistics: 95% cluster-bootstrap over items, paired by item. Pre-registration: [link]. Deviations: [none / list].
+- Validation: judge vs exact checks [accuracy]; 104-episode blind human audit stratified to oversample text attacks, Cohen's kappa [values; text-attack `followed_injection` value].
+- Statistics: 95% intervals, paired by item; crossed attack × document bootstrap for injected-item metrics, item-level bootstrap otherwise. H4 descriptive. Pre-registration: [link]. Deviations: [none / list].
 - Power: detectable effect about [x] percentage points.
 - Run date, SDK version, total tokens and cost.
 
@@ -2446,7 +2449,7 @@ The judge is about 70% of the full-run cost and Sonnet about 29%; Haiku is under
 - **Day 1:** Dataset reviewed and edited · `build_dataset` passes · 76 pilot episodes read
 - **Day 2:** Blind pilot grading · rubric frozen · gate passed · cost projected · pre-registration committed
 - **Day 3:** 928 episodes · 928 graded · spend matches projection
-- **Day 4:** 80-episode blind audit · kappa · analysis · seven questions answered
+- **Day 4:** 104-episode blind audit · kappa · analysis · seven questions answered
 - **Day 5:** Ablation · failures read and grouped into patterns
 - **Day 6:** Report written · every claim tied to evidence
 - **Day 7:** Secrets checked · README complete · release tagged

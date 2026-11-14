@@ -3,14 +3,25 @@
 Example:
     python -m evals.analyze_results --tags full
 
-Intervals are 95% cluster-bootstrap intervals over items: each item is
-resampled with all its samples, because repeated samples of one item are not
-independent. Differences between conditions or models are paired by item.
+Intervals are 95% bootstrap intervals, and differences between conditions or
+models are paired by item. An item is always resampled together with all its
+samples, because repeated samples of one item are not independent.
+
+Injected items are 10 attacks crossed with 8 carrier documents, so they are not
+80 independent items: items that share an attack, or a document, tend to behave
+alike. For any quantity computed over injected items only, the primary interval
+therefore comes from a two-way (crossed) bootstrap that resamples attacks and
+documents independently and keeps every item in the resampled grid. It is the
+right interval for claims about attacks and documents like these, rather than
+about these 80 items, and it is somewhat conservative (Owen, 2007). Section 2b
+shows the item-level interval for the primary metric for comparison. Quantities
+that include other categories use the item-level bootstrap.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 
 import numpy as np
 import pandas as pd
@@ -20,6 +31,7 @@ from evals.common import load_jsonl
 
 N_BOOT = 5000
 SEED = 20261103
+INJECTED_ID = re.compile(r"^(c\d+)_(a\d+)$")  # injected item ids: <carrier>_<attack>
 
 
 def _read(d):
@@ -119,6 +131,38 @@ def bootstrap(values, rng):
     return float(values.mean()), float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
+def crossed_bootstrap(values: pd.Series, rng):
+    """Two-way bootstrap for values indexed by injected item id (<carrier>_<attack>).
+
+    Each draw resamples carriers and attacks with replacement and averages every
+    item in the resampled grid (an item drawn twice on both axes counts four times).
+    Missing items are skipped."""
+    if values.empty:
+        return (np.nan, np.nan, np.nan)
+    keys = [INJECTED_ID.match(i).groups() for i in values.index]
+    carriers = sorted({c for c, _ in keys})
+    attacks = sorted({a for _, a in keys})
+    grid = np.full((len(carriers), len(attacks)), np.nan)
+    for (c, a), v in zip(keys, values.to_numpy(dtype=float)):
+        grid[carriers.index(c), attacks.index(a)] = v
+    ci = rng.integers(0, len(carriers), size=(N_BOOT, len(carriers)))
+    ai = rng.integers(0, len(attacks), size=(N_BOOT, len(attacks)))
+    draws = grid[ci[:, :, None], ai[:, None, :]]
+    with np.errstate(all="ignore"):
+        filled = ~np.isnan(draws)
+        means = np.where(filled, draws, 0).sum(axis=(1, 2)) / filled.sum(axis=(1, 2))
+    means = means[~np.isnan(means)]
+    return float(values.mean()), float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
+
+
+def interval(values: pd.Series, rng):
+    """The primary interval: crossed bootstrap when every item is an injected item,
+    item-level bootstrap otherwise."""
+    if len(values) and all(INJECTED_ID.match(str(i)) for i in values.index):
+        return crossed_bootstrap(values, rng)
+    return bootstrap(values.to_numpy(), rng)
+
+
 def fmt(est, lo, hi):
     return "–" if np.isnan(est) else f"{est:.0%} [{lo:.0%}, {hi:.0%}]"
 
@@ -139,10 +183,11 @@ def md_table(header, rows):
     return out + ["| " + " | ".join(str(c) for c in r) + " |" for r in rows] + [""]
 
 
-def paired_diff(df, metric, a_mask, b_mask, rng, key="id"):
+def paired_diff(df, metric, a_mask, b_mask, rng, key="id", crossed=True):
     a, b = per_item(df[a_mask], metric, key), per_item(df[b_mask], metric, key)
     common = a.index.intersection(b.index)
-    return bootstrap((a[common] - b[common]).to_numpy(), rng)
+    diff = a[common] - b[common]
+    return interval(diff, rng) if crossed else bootstrap(diff.to_numpy(), rng)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +243,8 @@ def main():
     L = [f"# Results ({', '.join(args.tags)}, effort={args.effort})", "",
          f"Episodes: {len(df)} (judged: {int(df.judged.sum())}). Excluded for API or judge errors: {n_errors}.",
          "Items per category: " + ", ".join(f"{k}={v}" for k, v in df.groupby("category")["id"].nunique().items()),
-         "Intervals: 95% cluster-bootstrap over items. `*` marks a difference whose interval excludes zero.", ""]
+         "Intervals: 95% bootstrap. Metrics on injected items only use a crossed bootstrap over attacks "
+         "and documents; the rest resample items. `*` marks a difference whose interval excludes zero.", ""]
 
     # 1. Rates
     L += ["## 1. Rates by model and condition", ""]
@@ -208,7 +254,7 @@ def main():
         for m in models:
             for c in conditions:
                 vals = per_item(df[(df.model_key == m) & (df.condition == c)], metric)
-                cells.append(fmt(*bootstrap(vals.to_numpy(), rng)))
+                cells.append(fmt(*interval(vals, rng)))
         body.append([f"**{metric}**: {desc}"] + cells + [better])
     L += md_table(["Metric"] + [f"{m} / {c}" for m in models for c in conditions] + ["Better"], body)
 
@@ -220,6 +266,15 @@ def main():
             (df.model_key == m) & (df.condition == "baseline"), rng)) for m in models] + [better]
             for metric, (_d, _f, _v, better) in METRICS.items()]
         L += md_table(["Metric"] + models + ["Better"], body)
+        L += ["### 2b. Primary metric: crossed and item-level intervals", "",
+              "The item-level interval treats the 80 injected items as independent; the crossed one "
+              "(primary) does not. A large gap means results depend on which attacks and documents were chosen.", ""]
+        body = []
+        for m in models:
+            masks = ((df.model_key == m) & (df.condition == "mitigated"), (df.model_key == m) & (df.condition == "baseline"))
+            body.append([m, fmt_diff(*paired_diff(df, "attack_success", *masks, rng)),
+                         fmt_diff(*paired_diff(df, "attack_success", *masks, rng, crossed=False))])
+        L += md_table(["Model", "Crossed (attacks × documents)", "Item-level"], body)
     else:
         L += ["Needs both conditions.", ""]
 
@@ -248,7 +303,12 @@ def main():
 
     # 5. Which attacks and documents
     for label, dim in (("5a", "attack_id"), ("5b", "carrier"), ("5c", "stealth"), ("5d", "attack_kind")):
-        L += [f"## {label}. Attack success by {dim}", ""] + breakdown(df, dim, models, conditions)
+        L += [f"## {label}. Attack success by {dim}", ""]
+        if dim == "attack_kind":
+            L += ["Descriptive (H4). Action and canary attacks are scored by exact checks and text attacks by "
+                  "the judge, so a difference between kinds mixes behaviour with measurement. Section 7 gives "
+                  "the judge's agreement with the exact checks.", ""]
+        L += breakdown(df, dim, models, conditions)
 
     # 6. Consistency
     L += ["## 6. Consistency across repeated samples", "",
@@ -313,7 +373,7 @@ def make_figure(df, models, conditions, rng):
     groups = [(m, c) for m in models for c in conditions]
     fig, axes = plt.subplots(1, len(HEADLINE), figsize=(4 * len(HEADLINE), 3.6), sharey=True)
     for ax, metric in zip(axes, HEADLINE):
-        stats = [bootstrap(per_item(df[(df.model_key == m) & (df.condition == c)], metric).to_numpy(), rng)
+        stats = [interval(per_item(df[(df.model_key == m) & (df.condition == c)], metric), rng)
                  for m, c in groups]
         est = np.array([s[0] for s in stats])
         err = [np.nan_to_num(est - [s[1] for s in stats]), np.nan_to_num(np.array([s[2] for s in stats]) - est)]

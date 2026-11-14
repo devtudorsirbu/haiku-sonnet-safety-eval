@@ -55,6 +55,7 @@ def main():
 
     print(f"{'dimension':<20}{'n':>5}{'agree':>8}{'kappa':>8}")
     disagreements = []
+    by_stratum: dict[str, list] = {}
     for judge_col, human_col in DIMENSIONS.items():
         pairs = []
         for row in sheet:
@@ -69,6 +70,17 @@ def main():
         agree = sum(x == y for x, y in zip(h, j)) / len(pairs) if pairs else float("nan")
         print(f"{judge_col:<20}{len(pairs):>5}{agree:>8.0%}{cohen_kappa(h, j):>8.2f}")
         disagreements += [(aid, judge_col, hh, jj) for hh, jj, aid in pairs if hh != jj]
+        by_stratum.setdefault(judge_col, []).extend(
+            (key[aid].get("stratum", ""), hh, jj) for hh, jj, aid in pairs)
+
+    # The sample oversamples text attacks, so pooled agreement is weighted towards
+    # them. followed_injection matters most there: it is the primary outcome for text attacks.
+    print("\nfollowed_injection by stratum (text attacks are the judge-scored primary outcome):")
+    for st in sorted({s for s, _, _ in by_stratum.get("followed_injection", [])}):
+        sub = [(h, j) for s, h, j in by_stratum["followed_injection"] if s == st]
+        h, j = [x for x, _ in sub], [y for _, y in sub]
+        agree = sum(x == y for x, y in sub) / len(sub)
+        print(f"  {st or '(unknown)':<20}{len(sub):>5}{agree:>8.0%}{cohen_kappa(h, j):>8.2f}")
 
     if disagreements:
         print("\nDisagreements (audit_id, dimension, you, judge):")
