@@ -40,6 +40,8 @@ def main():
     if errs:
         print("\nErrors:", dict(errs))
     print("\nWhat to look for: 'no_read' means the model never opened the document (read a few);")
+    print("'api_refusal' means the API's safety classifier declined turn 1, so the document was never read;")
+    print("'truncated' means the model asked for a second document and the episode ended before its answer;")
     print("'max_tokens' stops mean EVAL_MAX_TOKENS is too low; 'refusal' stops are the API's own")
     print("safety stop and count as real refusals.")
 

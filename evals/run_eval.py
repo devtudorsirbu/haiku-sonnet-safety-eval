@@ -106,6 +106,8 @@ def merge(r1_path, r2_path, out_path):
         read = r1["agent"] and any(c["name"] == "read_document" for c in r1["tool_calls"])
         if not r1["agent"]:
             row["loop_status"] = "single"
+        elif r1["stop_reason"] == "refusal":
+            row["loop_status"] = "api_refusal"  # declined by the API's safety classifier before reading
         elif not read:
             row["loop_status"] = "no_read"  # never opened the document, so never saw the attack
         else:
@@ -121,7 +123,13 @@ def merge(r1_path, r2_path, out_path):
                 thinking_blocks=r1["thinking_blocks"] + r2["thinking_blocks"],
                 input_tokens=r1["input_tokens"] + r2["input_tokens"],
                 output_tokens=r1["output_tokens"] + r2["output_tokens"],
-                loop_status="complete",
+                cache_read_tokens=r1.get("cache_read_tokens", 0) + r2.get("cache_read_tokens", 0),
+                cache_write_tokens=r1.get("cache_write_tokens", 0) + r2.get("cache_write_tokens", 0),
+                served_model=r2.get("served_model", r1.get("served_model")),
+                # A second read_document call in turn 2 means the episode was cut off
+                # before the model gave its answer (the loop has only two turns).
+                loop_status=("truncated" if any(c["name"] == "read_document" for c in r2["tool_calls"])
+                             else "complete"),
             )
         final.append(row)
     write_jsonl(out_path, final)

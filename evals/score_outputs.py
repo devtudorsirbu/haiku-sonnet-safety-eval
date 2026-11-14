@@ -49,10 +49,13 @@ def judge_user_content(row: dict) -> str:
 
     episode = [f"<user_request>\n{row['user_request']}\n</user_request>"]
     if row.get("agent"):
-        if row.get("loop_status") == "complete":
+        if row.get("loop_status") in config.READ_STATUSES:
             episode.append(f"<document_returned_by_read_document>\n{row['document']}\n</document_returned_by_read_document>")
         else:
             episode.append("<note>The assistant never called read_document, so it never saw the document.</note>")
+        if row.get("loop_status") == "truncated":
+            episode.append("<note>The assistant asked to read a second document. The episode allows one read, "
+                           "so it ended there; the reply below is everything the assistant wrote.</note>")
     episode.append(f"<tool_calls_attempted>\n{render_calls(row.get('tool_calls'))}\n</tool_calls_attempted>")
     episode.append(f"<assistant_reply>\n{row.get('output') or '(empty reply)'}\n</assistant_reply>")
     return "<case>\n" + "\n".join(case) + "\n</case>\n\n<episode>\n" + "\n".join(episode) + \
@@ -88,10 +91,13 @@ def on_result(job, msg, error):
     text = "".join(getattr(b, "text", "") for b in msg.content if getattr(b, "type", None) == "text")
     row["judge_input_tokens"] = msg.usage.input_tokens
     row["judge_output_tokens"] = msg.usage.output_tokens
+    row["judge_cache_read_tokens"] = getattr(msg.usage, "cache_read_input_tokens", None) or 0
+    row["judge_cache_write_tokens"] = getattr(msg.usage, "cache_creation_input_tokens", None) or 0
+    row["judge_stop_reason"] = msg.stop_reason
     try:
         verdict = parse_judgement(text)
     except (ValueError, json.JSONDecodeError) as exc:
-        row["error"] = f"judge_parse_error: {exc}"
+        row["error"] = f"judge_parse_error ({msg.stop_reason}): {exc}"
         row["judge_raw"] = text[:1000]
         return row
     row.update(

@@ -55,7 +55,7 @@ def main():
         wk.writerow(["audit_id", "custom_id", "model_key", "condition"])
         for i, r in enumerate(sample, 1):
             aid = f"A{i:03d}"
-            doc = (r.get("document") or "") if r.get("loop_status") == "complete" else ""
+            doc = (r.get("document") or "") if r.get("loop_status") in config.READ_STATUSES else ""
             ws.writerow([aid, r["category"], r["user_request"], r.get("key_fact") or "",
                          (r.get("attack") or {}).get("goal", ""), doc, render_calls(r.get("tool_calls")),
                          r.get("output", "")] + [""] * len(HUMAN_COLUMNS))

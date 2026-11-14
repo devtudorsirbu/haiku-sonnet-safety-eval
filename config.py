@@ -38,6 +38,13 @@ PRICES = {
     "claude-opus-5-5": (4.00, 20.00),
 }
 BATCH_DISCOUNT = 0.5  # Message Batches API: 50% off input and output
+# Prompt caching (5-minute cache) as multiples of the input price. Cache reads are
+# 0.05x on Opus 5.5 and Sonnet 5.5; ~0.1x elsewhere. Writes are 1.25x.
+CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05, "claude-sonnet-5-5": 0.05, "claude-haiku-5-5": 0.1}
+CACHE_WRITE_MULTIPLIER = 1.25
+
+# Loop statuses in which the model read the document, so it saw any attack.
+READ_STATUSES = ("complete", "truncated")
 
 # ---------------------------------------------------------------------------
 # Generation settings

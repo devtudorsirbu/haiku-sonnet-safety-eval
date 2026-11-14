@@ -90,12 +90,19 @@ def extract_message(msg) -> dict:
         "thinking_blocks": sum(b.get("type") in ("thinking", "redacted_thinking") for b in blocks),
         "input_tokens": msg.usage.input_tokens,
         "output_tokens": msg.usage.output_tokens,  # includes thinking tokens
+        # Cached prompt tokens are billed separately and are not in input_tokens.
+        "cache_read_tokens": getattr(msg.usage, "cache_read_input_tokens", None) or 0,
+        "cache_write_tokens": getattr(msg.usage, "cache_creation_input_tokens", None) or 0,
+        "served_model": msg.model,
     }
 
 
-def cost_usd(model: str, input_tokens: float, output_tokens: float, batch: bool = False) -> float:
+def cost_usd(model: str, input_tokens: float, output_tokens: float, batch: bool = False,
+             cache_read_tokens: float = 0, cache_write_tokens: float = 0) -> float:
     price_in, price_out = config.PRICES[model]
-    cost = (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+    cost = (input_tokens * price_in + output_tokens * price_out
+            + cache_read_tokens * price_in * config.CACHE_READ_MULTIPLIER.get(model, 0.1)
+            + cache_write_tokens * price_in * config.CACHE_WRITE_MULTIPLIER) / 1_000_000
     return cost * (config.BATCH_DISCOUNT if batch else 1.0)
 
 
@@ -165,7 +172,15 @@ def _run_batch(todo, out_path, on_result, client, poll_seconds) -> None:
     by_id = {j["custom_id"]: j for j in todo}
 
     if state_path.exists():
-        batch_id = json.loads(state_path.read_text())["batch_id"]
+        state = json.loads(state_path.read_text())
+        batch_id = state["batch_id"]
+        unexpected = set(state["custom_ids"]) - set(by_id)
+        if unexpected:
+            # Collecting now would discard results this command has no job for,
+            # and they would have to be paid for again.
+            raise SystemExit(
+                f"{state_path} belongs to an unfinished batch ({batch_id}) with {len(unexpected)} requests "
+                "this command does not include. Re-run the command that created it first.")
         print(f"Resuming batch {batch_id}")
     else:
         requests = [{"custom_id": j["custom_id"], "params": j["params"]} for j in todo]
