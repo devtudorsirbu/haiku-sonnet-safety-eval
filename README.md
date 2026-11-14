@@ -165,3 +165,16 @@ attacks are deliberately simple, well-known patterns, included so the defence ca
 The dataset was drafted with AI assistance and edited by the author. The code was written and
 reviewed with Claude, and commits list Claude as co-author. The judge is Claude Opus 5.5, chosen
 because it is not one of the models being tested.
+
+## License
+
+- **Code** (`config.py`, `evals/*.py`, `Makefile`): [MIT](LICENSE).
+- **Dataset, rubric, prompts, results and writing** (`data/`, `evals/rubric.md`,
+  `evals/judge_prompt.txt`, `results/`, `analysis/`, `writeup/`, and the Markdown documents):
+  [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CC-BY-4.0.txt).
+  You may share and adapt them for any purpose, provided you give credit: Tudor Sirbu,
+  *Does "treat documents as data" stop prompt injection in Claude agents?*, 2026,
+  https://github.com/devtudorsirbu/haiku-sonnet-safety-eval.
+
+Model outputs in `results/` were generated with the Claude API; their use is also subject to
+Anthropic's terms.
