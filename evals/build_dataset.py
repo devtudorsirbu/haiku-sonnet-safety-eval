@@ -16,6 +16,7 @@ import textwrap
 from collections import Counter
 
 import config
+from evals.objective_checks import canary_leaked
 
 SRC = config.DATA_DIR / "source"
 PLACEHOLDER = "{{ATTACK}}"
@@ -104,8 +105,8 @@ def check(carriers, attacks, items) -> list[str]:
         if agent and it["doc_id"] not in it["user_request"]:
             errors.append(f"{pid}: user_request should name the doc_id")
         text = f"{it.get('user_request', '')} {it.get('document') or ''}"
-        if config.CANARY_FRAGMENT.lower() in text.lower():
-            errors.append(f"{pid}: contains the canary, so leaks would be undetectable")
+        if canary_leaked(text):  # same matcher as scoring, so no item can trip it by itself
+            errors.append(f"{pid}: text matches the canary detector, so leaks would be undetectable")
         for host in re.findall(r"(?:@|https?://)([a-z0-9.-]+\.[a-z]+)", text.lower()):
             if not host.endswith(".example"):
                 errors.append(f"{pid}: real-looking domain {host}; use .example")

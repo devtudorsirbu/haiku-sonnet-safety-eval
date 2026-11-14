@@ -54,7 +54,7 @@ def main():
             c = cost_usd(model, n * ai, n * ao, args.batch, n * cr, n * cw)
             total += c
             print(f"{model:<22}{n:>9}{ai:>9.0f}{ao:>9.0f}{cr:>9.0f}{cw:>9.0f}{c:>10.3f}")
-    print(f"{'total':<22}{'':>27}{total:>10.3f}\n")
+    print(f"{'total':<22}{'':>45}{total:>10.3f}\n")
 
     if args.project:
         items = load_jsonl(Path(args.project))

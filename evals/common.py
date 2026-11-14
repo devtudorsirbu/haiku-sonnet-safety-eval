@@ -174,7 +174,9 @@ def _run_batch(todo, out_path, on_result, client, poll_seconds) -> None:
     if state_path.exists():
         state = json.loads(state_path.read_text())
         batch_id = state["batch_id"]
-        unexpected = set(state["custom_ids"]) - set(by_id)
+        # Requests already saved by an earlier, interrupted collection are done, not foreign.
+        saved = {cid for cid, row in latest_rows(out_path).items() if not row.get("error")}
+        unexpected = set(state["custom_ids"]) - set(by_id) - saved
         if unexpected:
             # Collecting now would discard results this command has no job for,
             # and they would have to be paid for again.
