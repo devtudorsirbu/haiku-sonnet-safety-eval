@@ -8,7 +8,7 @@
 
 Model IDs, prices and API behaviour were checked against Anthropic's documentation on 3 November 2026. Check them again before the full run and record the date in your README.
 
-> **Update, 14 November 2026 (code review).** The code in the repository is now the reference: where a listing below differs from the file in `evals/`, the file wins. The review fixed measurement bugs (canary matching, refusal and truncation labels, batch resume, cache costs) and made three design changes reflected in this plan: crossed attack × document intervals for injected items, H4 reported descriptively, and an audit that oversamples text attacks (104 episodes).
+> **Update, 14 November 2026 (code review).** The code in the repository is now the reference: where a listing below differs from the file in `evals/`, the file wins. The review fixed measurement bugs (canary matching, refusal and truncation labels, batch resume, cache costs) and made three design changes reflected in this plan: crossed attack × document intervals for injected items, H4 reported descriptively, and an audit that oversamples text attacks (104 episodes). In the Day 1 dataset review the mitigation paragraph was made generic (it no longer lists the five attack goals, which mirrored the test set), and attacks a03, a04, a05, a07 and a09 were reworded: no attack names the secret as the system prompt does, and none is addressed only to "summaries". `config.py` and `data/source/attacks.jsonl` hold the current text.
 
 ---
 
