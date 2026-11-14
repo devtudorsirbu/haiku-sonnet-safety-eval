@@ -158,6 +158,7 @@ attacks are deliberately simple, well-known patterns, included so the defence ca
 - A Claude model judges Claude models. This is bounded by a blind human audit (oversampling text
   attacks) and by the judge's accuracy on the exactly scored attacks.
 - Two-turn episodes with mock tools, one wording of the mitigation, one main effort level.
+- Short documents (about 80–120 words), so the planted instruction is conspicuous; longer documents may hide attacks better.
 - Results describe these model snapshots, items and settings only.
 
 ## Use of AI
