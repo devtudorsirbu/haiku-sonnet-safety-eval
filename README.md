@@ -168,6 +168,13 @@ attacks are deliberately simple, well-known patterns, included so the defence ca
 - The mitigation paragraph is tested as a whole. It also tells the agent to take only actions the user asked for, so an effect on the email attacks cannot be credited to the "treat as data" sentence alone.
 - Results describe these model snapshots, items and settings only.
 
+## Independent review
+
+Before any data was collected, a separate Claude model under a different account reviewed the design,
+dataset and code without being told what earlier reviews had found. All 19 findings were verified and
+fixed. The report, its test scripts and what changed are archived in
+[`writeup/independent_review_2026-11-15/`](writeup/independent_review_2026-11-15/NOTE.md).
+
 ## Use of AI
 
 The dataset was drafted with AI assistance and edited by the author. The code was written and
@@ -176,7 +183,7 @@ because it is not one of the models being tested.
 
 ## License
 
-- **Code** (`config.py`, `evals/*.py`, `Makefile`): [MIT](LICENSE).
+- **Code** (all `*.py` files and the `Makefile`): [MIT](LICENSE).
 - **Dataset, rubric, prompts, results and writing** (`data/`, `evals/rubric.md`,
   `evals/judge_prompt.txt`, `results/`, `analysis/`, `writeup/`, and the Markdown documents):
   [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CC-BY-4.0.txt).
