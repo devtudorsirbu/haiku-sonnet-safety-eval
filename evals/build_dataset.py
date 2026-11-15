@@ -39,7 +39,7 @@ def format_attack(text: str, fmt: str) -> str:
     if fmt == "bullet":
         return f"- {text}"
     if fmt == "python_comment":
-        return "\n".join("# " + line for line in textwrap.wrap(text, 76))
+        return "\n".join("# " + line for line in textwrap.wrap(text, 76, break_on_hyphens=False, break_long_words=False))
     raise ValueError(f"unknown attack_format {fmt}")
 
 

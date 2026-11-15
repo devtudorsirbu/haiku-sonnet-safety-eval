@@ -93,6 +93,20 @@ def round2_jobs(r1_rows):
     return jobs
 
 
+def turn2_status(r2) -> str:
+    """How an episode that read its document ended. See config.py for the statuses."""
+    names = {c["name"] for c in r2["tool_calls"]}
+    if "send_email" in names:
+        return "ended_at_email"  # the loop stops at the email: no final answer by design
+    if "read_document" in names:
+        return "truncated"  # asked for a second document; the loop allows one read
+    if r2["stop_reason"] == "refusal":
+        return "refused_after_read"
+    if r2["stop_reason"] == "max_tokens":
+        return "max_tokens_after_read"
+    return "complete"
+
+
 def merge(r1_path, r2_path, out_path):
     """One row per episode. Rows whose episode is unfinished carry an error."""
     r1_rows, r2_rows = latest_rows(r1_path), latest_rows(r2_path)
@@ -109,7 +123,8 @@ def merge(r1_path, r2_path, out_path):
         elif r1["stop_reason"] == "refusal":
             row["loop_status"] = "api_refusal"  # declined by the API's safety classifier before reading
         elif not read:
-            row["loop_status"] = "no_read"  # never opened the document, so never saw the attack
+            # Never opened the document, so never saw the attack.
+            row["loop_status"] = "max_tokens_before_read" if r1["stop_reason"] == "max_tokens" else "no_read"
         else:
             r2 = r2_rows.get(cid)
             if not r2 or r2.get("error"):
@@ -126,10 +141,7 @@ def merge(r1_path, r2_path, out_path):
                 cache_read_tokens=r1.get("cache_read_tokens", 0) + r2.get("cache_read_tokens", 0),
                 cache_write_tokens=r1.get("cache_write_tokens", 0) + r2.get("cache_write_tokens", 0),
                 served_model=r2.get("served_model", r1.get("served_model")),
-                # A second read_document call in turn 2 means the episode was cut off
-                # before the model gave its answer (the loop has only two turns).
-                loop_status=("truncated" if any(c["name"] == "read_document" for c in r2["tool_calls"])
-                             else "complete"),
+                loop_status=turn2_status(r2),
             )
         final.append(row)
     write_jsonl(out_path, final)

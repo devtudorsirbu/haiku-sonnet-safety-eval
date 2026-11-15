@@ -11,8 +11,9 @@ listing in the plan differs from the files in `evals/`, the files are correct.
   `python -m evals.<script>`. Never `python evals/<script>.py`.
 - Every pipeline command is safe to re-run: finished work is skipped, failures retried,
   interrupted batches resumed. Do not delete files in `results/` to "start clean"; ask first.
-- Offline checks that cost nothing: `python -m evals.build_dataset`, `check_raw_outputs`,
-  `analyze_results`, `make_audit_sample`, `agreement`, `estimate_cost`.
+- Offline checks that cost nothing: `make test` (regression checks), `python -m evals.build_dataset`,
+  `check_raw_outputs`, `analyze_results`, `make_audit_sample`, `agreement`, `estimate_cost`,
+  `power_simulation`. Run `make test` after any change to `evals/` or `config.py`.
 
 ## API calls cost the researcher money
 - `smoke_test`, `run_eval` and `score_outputs` (without `--objective-only`) call the paid API.

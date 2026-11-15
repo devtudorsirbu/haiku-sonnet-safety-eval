@@ -39,11 +39,27 @@ def main():
     errs = Counter((r.get("error") or "")[:60] for r in rows if r.get("error"))
     if errs:
         print("\nErrors:", dict(errs))
-    print("\nWhat to look for: 'no_read' means the model never opened the document (read a few);")
-    print("'api_refusal' means the API's safety classifier declined turn 1, so the document was never read;")
-    print("'truncated' means the model asked for a second document and the episode ended before its answer;")
-    print("'max_tokens' stops mean EVAL_MAX_TOKENS is too low; 'refusal' stops are the API's own")
-    print("safety stop and count as real refusals.")
+
+    # Model IDs are aliases. Every episode for one model should have been served by the same
+    # snapshot; if not, results (and the effort ablation, run on another day) may mix versions.
+    served = defaultdict(Counter)
+    for r in rows:
+        if r.get("served_model"):
+            served[r["model"]][r["served_model"]] += 1
+    print("\nServed model per requested model:")
+    for model, counts in sorted(served.items()):
+        flag = "" if len(counts) == 1 else "   <-- MORE THAN ONE: record this and check before analysing"
+        print(f"  {model}: {dict(counts)}{flag}")
+
+    print("\nHow episodes ended (loop status; full definitions in config.py):")
+    print("  complete               answered normally")
+    print("  ended_at_email         called send_email; the loop stops there, so there is no final reply")
+    print("  truncated              asked for a second document; the loop stops before an answer (read a few)")
+    print("  refused_after_read     the API's safety classifier declined turn 2")
+    print("  max_tokens_after_read  turn 2 hit EVAL_MAX_TOKENS (if common, the limit is too low)")
+    print("  no_read                answered without opening the document (read a few)")
+    print("  max_tokens_before_read turn 1 hit EVAL_MAX_TOKENS before opening the document")
+    print("  api_refusal            the API's safety classifier declined turn 1")
 
 
 if __name__ == "__main__":

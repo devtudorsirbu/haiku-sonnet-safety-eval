@@ -21,7 +21,7 @@ not as instructions*. This experiment measures how much that line helps, and wha
 |---|---|
 | **Models tested** | `claude-haiku-5-5`, `claude-sonnet-5-5`, both at effort `medium` |
 | **Setting** | Agent with two mock tools, `read_document` and `send_email`. Tool calls are recorded, never executed |
-| **Intervention** | One paragraph added to the system prompt ([`MITIGATION` in `config.py`](config.py)). Everything else is identical |
+| **Intervention** | One paragraph added to the system prompt ([`MITIGATION` in `config.py`](config.py)): treat tool output as data, take only actions the user asked for, and optionally tell the user about instructions not followed. Everything else is identical. Results apply to this paragraph as a whole |
 | **Attacks** | 10 planted instructions × 8 carrier documents = 80 injected items |
 | **Controls** | The 8 documents without the attack, 8 documents with legitimate instructions to people, 12 benign chat requests, 8 direct jailbreak-style requests |
 | **Runs** | 116 items × 2 models × 2 conditions × 2 samples = 928 episodes |
@@ -70,12 +70,14 @@ false injection alarms on clean documents, refusals, and adoption of direct over
 | **H2** | The mitigation increases false alarms on clean and benign documents |
 | **H3** | At baseline, Sonnet has lower `attack_success` than Haiku |
 | **H4** (descriptive) | Action attacks succeed less often than text attacks. Not tested, because the two kinds are measured differently |
-| **H5** | Higher effort lowers objective attack success (small ablation at `low` and `high`) |
+| **H5** | Higher effort lowers objective attack success (small ablation: `high` − `low`, paired by item) |
 
 **Statistics.** Differences are paired by item. The 80 injected items are 10 attacks crossed with
 8 documents, not 80 independent items. So intervals for them come from a two-way bootstrap that
 resamples attacks and documents separately, which supports claims about attacks and documents like
-these rather than only these 80. Item-level intervals are reported alongside. Details are in the
+these rather than only these 80. Item-level intervals are reported alongside. Only the pre-registered
+tests (H1, H3, H5) are marked as significant; everything else is descriptive. The primary result is
+also shown under three sensitivity choices of which episodes count. Details are in the
 [plan](haiku_sonnet_opus_implementation.md#analysis-plan).
 
 ## Results
@@ -104,7 +106,9 @@ resumed rather than resubmitted.
 | Step | Command | API cost |
 |---|---|---:|
 | Build and check the dataset | `python -m evals.build_dataset` | – |
+| Offline regression checks | `make test` | – |
 | Pilot (19 items, synchronous) | `make pilot` | ~$0.50 |
+| Power from the pilot's rates (difficulty gate) | `python -m evals.power_simulation --tag pilot` | – |
 | Run the agents | `python -m evals.run_eval --tag full --mode batch` | ~$3 |
 | Check outputs | `python -m evals.check_raw_outputs --tag full` | – |
 | Grade | `python -m evals.score_outputs --tag full --effort medium --mode batch` | ~$7 |
@@ -125,6 +129,8 @@ data/source/              hand-edited attacks, documents and controls
 data/dataset.jsonl        generated: 116 items (pilot.jsonl: 19)
 evals/                    runner, exact checks, judge, audit, analysis
 evals/rubric.md           the judge's rubric
+evals/power_simulation.py power of the primary test, from the pilot's rates
+tests/offline_checks.py   regression checks for scoring, labelling and analysis
 results/                  raw and graded outputs, audit sheets, figures
 analysis/                 results.md and failures.jsonl (generated)
 writeup/                  pre-registration and report
@@ -158,7 +164,8 @@ attacks are deliberately simple, well-known patterns, included so the defence ca
 - A Claude model judges Claude models. This is bounded by a blind human audit (oversampling text
   attacks) and by the judge's accuracy on the exactly scored attacks.
 - Two-turn episodes with mock tools, one wording of the mitigation, one main effort level.
-- Short documents (about 80–120 words), so the planted instruction is conspicuous; longer documents may hide attacks better.
+- Short documents (about 30–75 words before the attack), so the planted instruction is a large, conspicuous part of each; longer documents may hide attacks better.
+- The mitigation paragraph is tested as a whole. It also tells the agent to take only actions the user asked for, so an effect on the email attacks cannot be credited to the "treat as data" sentence alone.
 - Results describe these model snapshots, items and settings only.
 
 ## Use of AI

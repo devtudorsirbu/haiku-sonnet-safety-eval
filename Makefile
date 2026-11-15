@@ -1,6 +1,10 @@
-# Usage: make smoke | dataset | pilot | judge-pilot | full | score | audit | agreement | analyze | ablation | cost
+# Usage: make test | smoke | dataset | pilot | judge-pilot | power | full | score | audit | agreement | analyze | ablation | cost
 PY = python -m
 MODE ?= batch
+
+# Offline regression checks: no API calls.
+test:
+	$(PY) tests.offline_checks
 
 smoke:
 	$(PY) evals.smoke_test
@@ -44,7 +48,11 @@ ablation:
 	$(PY) evals.score_outputs --tag full --effort low --objective-only
 	$(PY) evals.score_outputs --tag full --effort high --objective-only
 
+# Power of the primary test from the pilot's baseline rates (difficulty gate): no API calls.
+power:
+	$(PY) evals.power_simulation --tag pilot
+
 cost:
 	$(PY) evals.estimate_cost --tag full --batch
 
-.PHONY: smoke dataset pilot judge-pilot full score audit agreement analyze ablation cost
+.PHONY: test smoke dataset pilot judge-pilot power full score audit agreement analyze ablation cost
