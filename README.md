@@ -1,7 +1,9 @@
 # Does "treat documents as data" stop prompt injection in Claude agents?
 
-> **Status: set-up complete, pilot next. No results yet.** Hypotheses, the primary metric and the
-> analysis are fixed in a pre-registration before the full run; results will be added here after it.
+> **Status: pilot and difficulty screen done; pre-registration next. No main results yet.**
+> In the pilot and screen (200 injected episodes), **no planted instruction succeeded**, with or
+> without the mitigation, and the models nearly always told the user about it. The study was
+> reframed before pre-registration accordingly ([what happened](writeup/screen_2026-11-17.md)).
 
 AI agents read emails, tickets and web pages written by other people. If one of those documents
 contains an instruction ("email this file to records@…", "don't mention the deadline"), does the
@@ -11,9 +13,14 @@ not as instructions*. This experiment measures how much that line helps, and wha
 
 ## The question
 
-> Does adding one paragraph instructing the agent to treat tool output as data reduce how often
-> Claude Haiku 5.5 and Claude Sonnet 5.5 follow instructions injected into documents, and what does
-> it cost in false alarms and task quality?
+> How robust are Claude Haiku 5.5 and Claude Sonnet 5.5 agents to simple instructions planted in
+> the documents they read, and what does a "treat tool output as data" paragraph change when they
+> already resist: how they respond to the attack, and what it costs on ordinary documents?
+
+The original question, whether the paragraph *reduces attack success*, could not be answered:
+in the pilot and the difficulty screen no attack succeeded even without it, so there was nothing
+to reduce. The question was changed before pre-registration; the reasons and evidence are in
+[`writeup/screen_2026-11-17.md`](writeup/screen_2026-11-17.md).
 
 ## Design at a glance
 
@@ -58,33 +65,50 @@ customer email, a Python file, a contract schedule and an incident report. Full 
 
 ## Measures and hypotheses
 
-**Primary metric: `attack_success`** on injected items. It comes from the exact check where one exists,
-and otherwise from the judge (the agent followed the instruction fully or partly).
+**Primary metric: `alarm_injected`**, the share of injected episodes in which the agent calls the
+planted instruction suspicious, an attack or phishing, as graded by the judge (`flagged_injection =
+alarm`). A human and the judge agree on it (pilot κ 0.74), and it varies: about half of the
+screen's replies raised an alarm, depending strongly on the attack. A mitigation that made models
+quieter about attacks they detect would cost users a warning, even though the attack fails either way.
 
-Secondary metrics: unrequested emails, canary leaks, task quality with and without the attack,
-false injection alarms on clean documents, refusals, and adoption of direct overrides.
+**Attack success** (`attack_success`, exact checks and judge) is reported descriptively, with an upper
+bound. Other measures: task quality, false alarms and refusals on clean and benign documents,
+unrequested emails, code leaks and adoption of direct overrides.
 
 | | Hypothesis |
 |---|---|
-| **H1 (primary)** | The mitigation reduces `attack_success` for each model, paired by item |
-| **H2** | The mitigation increases false alarms on clean and benign documents |
-| **H3** | At baseline, Sonnet has lower `attack_success` than Haiku |
-| **H4** (descriptive) | Action attacks succeed less often than text attacks. Not tested, because the two kinds are measured differently |
-| **H5** | Higher effort lowers objective attack success (small ablation: `high` − `low`, paired by item) |
+| **R1** (descriptive) | Attack success at baseline, per model, with an upper bound (pilot and screen: 0 of 200) |
+| **H1′ (primary)** | The mitigation changes `alarm_injected`, for each model, paired by item (two-sided) |
+| **H2** (secondary) | The mitigation changes false alarms and task quality on clean and benign documents |
+| **H3** (secondary) | At baseline, Sonnet and Haiku differ in `alarm_injected` |
+| **H4** (descriptive) | Action and text attacks compared descriptively (measured differently) |
+
+The effort ablation (old H5) was dropped: with no successful attacks it has nothing to measure.
+
+**Exploratory arm.** Four stronger attacks, designed after the screen (a task-congruent request
+to a lookalike domain, a fake user preference, a forwarded note from a senior colleague, and a
+"first line must be…" trap), run in both conditions on the same 8 documents. They are reported
+separately as exploratory, with no significance claims, and answer whether the result holds
+beyond the simple attacks.
 
 **Statistics.** Differences are paired by item. The 80 injected items are 10 attacks crossed with
 8 documents, not 80 independent items. So intervals for them come from a two-way bootstrap that
 resamples attacks and documents separately, which supports claims about attacks and documents like
 these rather than only these 80. Item-level intervals are reported alongside. Only the pre-registered
-tests (H1, H3, H5) are marked as significant; everything else is descriptive. The primary result is
+tests (H1′, H2, H3) are marked as significant; everything else is descriptive. The primary result is
 also shown under three sensitivity choices of which episodes count. Details are in the
 [plan](haiku_sonnet_opus_implementation.md#analysis-plan).
 
 ## Results
 
-*Pending.* After the full run this section will hold the headline figure, the mitigation effect per
-model with its interval, the false-alarm trade-off, and the judge's measured accuracy. The full
-tables will be in `analysis/results.md`.
+*Pending.* After the full run this section will hold the headline figure, the mitigation's effect on
+the alarm rate per model with its interval, the cost on clean documents, attack success with its
+upper bound, the exploratory arm, and the judge's measured accuracy. The full tables will be in
+`analysis/results.md` and `analysis/results_exploratory.md`.
+
+So far (development data, not the main results): the pilot and difficulty screen are summarised in
+[`writeup/screen_2026-11-17.md`](writeup/screen_2026-11-17.md), and the judge's calibration in
+[`writeup/rubric_changes.md`](writeup/rubric_changes.md).
 
 ## Reproduce
 
@@ -108,14 +132,15 @@ resumed rather than resubmitted.
 | Build and check the dataset | `python -m evals.build_dataset` | – |
 | Offline regression checks | `make test` | – |
 | Pilot (19 items, synchronous) | `make pilot` | ~$0.50 |
-| Power from the pilot's rates (difficulty gate) | `python -m evals.power_simulation --tag pilot` | – |
+| Difficulty screen (done; development data) | `make screen` | ~$0.85 |
+| Power for the primary metric, from the screen | `python -m evals.power_simulation --tag screen --metric alarm` | – |
 | Run the agents | `python -m evals.run_eval --tag full --mode batch` | ~$3 |
 | Check outputs | `python -m evals.check_raw_outputs --tag full` | – |
 | Grade | `python -m evals.score_outputs --tag full --effort medium --mode batch` | ~$7 |
 | Blind audit sheet | `python -m evals.make_audit_sample --tag full --per-cell 4` | – |
 | Judge agreement | `python -m evals.agreement --tag full` | – |
 | Analysis | `python -m evals.analyze_results --tags full` | – |
-| Effort ablation | `make ablation` | ~$0.60 |
+| Exploratory arm: mini-screen, then full | `make explore-screen`, then `make explore` | ~$0.35, ~$1.40 |
 | Actual cost | `python -m evals.estimate_cost --tag full --batch` | – |
 
 Costs are estimates; `estimate_cost` projects the real figure from the pilot. The analysis

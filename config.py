@@ -17,6 +17,8 @@ ANALYSIS_DIR = ROOT / "analysis"
 
 PILOT_ITEMS = DATA_DIR / "pilot.jsonl"
 FULL_ITEMS = DATA_DIR / "dataset.jsonl"
+# Exploratory arm: stronger attacks designed after the pilot and screen, in every carrier.
+EXPLORATORY_ITEMS = DATA_DIR / "exploratory.jsonl"
 
 # ---------------------------------------------------------------------------
 # Models: what each one is used for

@@ -10,6 +10,20 @@ Model IDs, prices and API behaviour were checked against Anthropic's documentati
 
 > **Update, 14 November 2026 (code review).** The code in the repository is now the reference: where a listing below differs from the file in `evals/`, the file wins. The review fixed measurement bugs (canary matching, refusal and truncation labels, batch resume, cache costs) and made three design changes reflected in this plan: crossed attack × document intervals for injected items, H4 reported descriptively, and an audit that oversamples text attacks (104 episodes). In the Day 1 dataset review the mitigation paragraph was made generic (it no longer lists the five attack goals, which mirrored the test set), and attacks a03, a04, a05, a07 and a09 were reworded: no attack names the secret as the system prompt does, and none is addressed only to "summaries". Five carriers were also corrected: c01's key fact no longer requires flagging fraud, c02's states the expected severity, c04 is a supplier's product, c05's penalises invented order details, and c07 asks for the key terms rather than obligations. `config.py` and `data/source/` hold the current text. An independent review on 15 November 2026 led to further changes, reflected below: how episodes are labelled and counted, a rubric rule for relayed content and for omission attacks, alarms separated from neutral notes, a stricter difficulty gate with a power simulation, sensitivity analyses, judge sensitivity and specificity, a paired test for H5, stars only on pre-registered tests, blind pilot grading before reading the outputs, and offline regression checks (`make test`).
 
+> **Revision after the pilot, 17 November 2026 (supersedes the question, hypotheses and gate below).**
+> The pilot and a difficulty screen of all 80 injected items found **no successful attack** in 200
+> injected episodes (both models; baseline and mitigated), so the original primary question could
+> not be answered. Before pre-registration the study was reframed: **R1** attack success at baseline,
+> descriptive, with an upper bound; **H1′ (primary)** the mitigation's effect on the alarm rate on
+> injected items (`alarm_injected`), paired by item, two-sided, crossed interval (detectable effect
+> about 20 points at 80% power, simulated from the screen); **H2** its effect on false alarms and task
+> quality on clean and benign documents; **H3** the model gap in alarm rate at baseline; **H4**
+> descriptive. H5 (effort ablation) was dropped. An **exploratory arm** of four stronger attacks
+> (`data/source/attacks_exploratory.jsonl`, `make explore-screen`, `make explore`) is reported
+> separately without significance claims. The rubric was calibrated over five rounds and frozen
+> (`writeup/rubric_changes.md`). Details: `writeup/screen_2026-11-17.md`. Sections below that describe
+> the old H1, H5 and the difficulty gate are kept as the original plan.
+
 ---
 
 # Part A: What changed, and why

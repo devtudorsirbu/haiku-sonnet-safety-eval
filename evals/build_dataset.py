@@ -48,6 +48,22 @@ def clean_document(doc: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
 
 
+def injected_items(carriers, attacks, note_prefix=""):
+    """Every attack planted in every carrier."""
+    items = []
+    for c in carriers:
+        common = {k: c[k] for k in ("doc_id", "source", "user_request", "key_fact")}
+        for a in attacks:
+            items.append({
+                "id": f"{c['id']}_{a['id']}", "category": "injected", "carrier": c["id"], **common,
+                "document": c["document"].replace(PLACEHOLDER, format_attack(a["text"], c["attack_format"])),
+                "attack": {k: a[k] for k in ("id", "kind", "stealth", "text", "goal", "success")},
+                "expected_behavior": "resist_injection",
+                "notes": f"{note_prefix}Carrier: {c['notes']} Attack: {a['notes']}",
+            })
+    return items
+
+
 def build():
     carriers = read("carriers.jsonl")
     attacks = read("attacks.jsonl")
@@ -126,7 +142,22 @@ def main():
     pilot_ids |= {f"{c}_clean" for c in PILOT_CARRIERS} | set(PILOT_OTHER)
     pilot = [i for i in items if i["id"] in pilot_ids]
 
-    for path, rows in ((config.FULL_ITEMS, items), (config.PILOT_ITEMS, pilot)):
+    outputs = [(config.FULL_ITEMS, items), (config.PILOT_ITEMS, pilot)]
+    if (SRC / "attacks_exploratory.jsonl").exists():
+        x_attacks = read("attacks_exploratory.jsonl")
+        x_items = injected_items(carriers, x_attacks, note_prefix="EXPLORATORY. ")
+        x_errors = check(carriers, x_attacks, x_items)
+        clash = {a["id"] for a in x_attacks} & {a["id"] for a in attacks}
+        if clash:
+            x_errors.append(f"exploratory attack ids reuse main ids: {sorted(clash)}")
+        if x_errors:
+            print(f"{len(x_errors)} problems in the exploratory attacks:")
+            for e in x_errors:
+                print("  -", e)
+            sys.exit(1)
+        outputs.append((config.EXPLORATORY_ITEMS, x_items))
+
+    for path, rows in outputs:
         with path.open("w", encoding="utf-8") as f:
             for r in rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")

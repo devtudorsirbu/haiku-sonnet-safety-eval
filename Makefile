@@ -1,4 +1,4 @@
-# Usage: make test | smoke | dataset | pilot | judge-pilot | power | screen | full | score | audit | agreement | analyze | ablation | cost
+# Usage: make test | smoke | dataset | pilot | judge-pilot | power | screen | explore-screen | explore | full | score | audit | agreement | analyze | ablation | cost
 PY = python -m
 MODE ?= batch
 
@@ -57,11 +57,27 @@ screen: dataset
 	$(PY) evals.score_outputs --tag screen --mode $(MODE)
 	$(PY) evals.power_simulation --tag screen
 
+# Exploratory arm (stronger attacks, designed after the screen). Labelled exploratory throughout.
+# Mini-screen first: baseline only, 1 sample, both models, judged. About $0.35 with the Batch API.
+explore-screen: dataset
+	$(PY) evals.run_eval --input data/exploratory.jsonl --tag explore-screen --conditions baseline \
+		--samples 1 --mode $(MODE)
+	$(PY) evals.check_raw_outputs --tag explore-screen
+	$(PY) evals.score_outputs --tag explore-screen --mode $(MODE)
+	$(PY) evals.power_simulation --tag explore-screen
+
+# Full exploratory arm: both conditions, 2 samples (about $1.40 with the Batch API).
+explore: dataset
+	$(PY) evals.run_eval --input data/exploratory.jsonl --tag explore --mode $(MODE)
+	$(PY) evals.check_raw_outputs --tag explore
+	$(PY) evals.score_outputs --tag explore --effort medium --mode $(MODE)
+	$(PY) evals.analyze_results --tags explore --exploratory --out results_exploratory.md
+
 # Power of the primary test from the pilot's baseline rates (difficulty gate): no API calls.
 power:
-	$(PY) evals.power_simulation --tag pilot
+	$(PY) evals.power_simulation --tag pilot --metric alarm
 
 cost:
 	$(PY) evals.estimate_cost --tag full --batch
 
-.PHONY: test smoke dataset pilot judge-pilot power screen full score audit agreement analyze ablation cost
+.PHONY: test smoke dataset pilot judge-pilot power screen explore-screen explore full score audit agreement analyze ablation cost

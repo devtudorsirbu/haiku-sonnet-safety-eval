@@ -1,7 +1,8 @@
-"""Power of the primary test (H1), simulated from the pilot's baseline attack success.
+"""Power of a paired mitigation test, simulated from observed baseline rates per attack.
 
 Examples:
-    python -m evals.power_simulation --tag pilot
+    python -m evals.power_simulation --tag screen --metric alarm     # primary H1' (alarm rate)
+    python -m evals.power_simulation --tag pilot                     # attack success
     python -m evals.power_simulation --rates 0.5 0.4 0.2 0.1 0 0 0 0 0 0
 
 No API calls. Takes a minute or two.
@@ -31,8 +32,10 @@ from evals.common import load_jsonl
 IDS = [f"c{c:02d}_a{a:02d}" for c in range(1, 9) for a in range(1, 11)]
 
 
-def pilot_rates(tag: str) -> dict[str, pd.Series]:
-    """Baseline success rate per attack, per model, from scored episodes that read the document."""
+def pilot_rates(tag: str, metric: str = "attack") -> dict[str, pd.Series]:
+    """Baseline rate per attack, per model, from scored episodes that read the document.
+
+    metric="attack": the attack succeeded. metric="alarm": the judge labelled the reply an alarm."""
     rows = [r for r in load_jsonl(config.SCORED_DIR / f"{tag}.jsonl")
             if r.get("category") == "injected" and r.get("condition") == "baseline"
             and r.get("loop_status") in config.READ_STATUSES and r.get("effort") == config.EVAL_EFFORT]
@@ -43,6 +46,8 @@ def pilot_rates(tag: str) -> dict[str, pd.Series]:
     obj = df["attack_success_objective"]
     judged = df["followed_injection"].isin(["yes", "partial"])
     df["success"] = [bool(o) if o is not None and not pd.isna(o) else j for o, j in zip(obj, judged)]
+    if metric == "alarm":
+        df["success"] = df["flagged_injection"] == "alarm"
     return {m: g.groupby("attack_id")["success"].agg(["mean", "size"]) for m, g in df.groupby("model_key")}
 
 
@@ -58,7 +63,7 @@ def power(observed: np.ndarray, keep: float, rng, reps: int, carrier_sd: float =
         mit = rng.binomial(2, keep * p) / 2
         effects.append((keep - 1) * p.mean())
         _, lo, hi = ar.crossed_bootstrap(pd.Series((mit - base).ravel(), index=IDS), rng)
-        hits += hi < 0
+        hits += (hi < 0) or (lo > 0)  # two-sided: the interval excludes zero
         widths.append(hi - lo)
     return float(np.mean(effects)), hits / reps, float(np.mean(widths))
 
@@ -67,8 +72,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--tag", help="Scored run to estimate baseline rates from, e.g. pilot")
     p.add_argument("--rates", nargs="+", type=float, help="Baseline success rates per attack, instead of --tag")
-    p.add_argument("--keep", nargs="+", type=float, default=[0.75, 0.5, 0.25, 0.0],
-                   help="Share of baseline success that survives the mitigation")
+    p.add_argument("--metric", choices=["attack", "alarm"], default="attack",
+                   help="attack: attack success (old H1); alarm: alarm rate on injected items (H1')")
+    p.add_argument("--keep", nargs="+", type=float, default=[0.9, 0.75, 0.5, 0.25],
+                   help="Share of the baseline rate that remains with the mitigation")
     p.add_argument("--reps", type=int, default=300)
     p.add_argument("--n-boot", type=int, default=1000)
     args = p.parse_args()
@@ -81,18 +88,18 @@ def main():
         rates = {"given": np.array(args.rates)}
     else:
         rates = {}
-        for model, tab in pilot_rates(args.tag).items():
-            print(f"\n{model}: baseline success per attack (episodes): " +
+        for model, tab in pilot_rates(args.tag, args.metric).items():
+            print(f"\n{model}: baseline {args.metric} rate per attack (episodes): " +
                   ", ".join(f"{a} {r['mean']:.0%} ({int(r['size'])})" for a, r in tab.iterrows()))
             rates[model] = tab["mean"].to_numpy()
     for model, observed in rates.items():
         works = int((observed > 0).sum())
-        print(f"\n{model}: mean baseline success {observed.mean():.0%}; "
-              f"{works} of {len(observed)} attacks succeeded at least once")
+        print(f"\n{model}: mean baseline rate {observed.mean():.0%}; "
+              f"{works} of {len(observed)} attacks above zero at least once")
         if works == 0:
-            print("  No attack succeeded, so there is nothing for the mitigation to reduce: power is 0.")
+            print("  The rate is zero everywhere, so there is nothing for the mitigation to lower: power is 0.")
             continue
-        print(f"  {'mitigation removes':>20} {'true effect':>12} {'power':>7} {'interval width':>15}")
+        print(f"  {'mitigation lowers by':>20} {'true effect':>12} {'power':>7} {'interval width':>15}")
         for keep in args.keep:
             eff, pw, width = power(observed, keep, rng, args.reps)
             print(f"  {1 - keep:>20.0%} {eff * 100:>+10.1f}pp {pw:>7.0%} {width * 100:>13.0f}pp")

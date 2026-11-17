@@ -137,6 +137,21 @@ try:
 except SystemExit:
     check("refuses to overwrite", "A001,none" in sheet.read_text())
 
+print("Reframed analysis (after the pilot)")
+import pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+vals = pd.Series([0.0, 1.0] * 16, index=[f"c0{c}_x0{a}" for c in range(1, 9) for a in range(1, 5)])
+est, lo, hi = analyze_results.crossed_bootstrap(vals, rng)
+check("crossed bootstrap accepts exploratory (x) attack ids", lo <= est <= hi)
+check("primary metric is the alarm rate", analyze_results.PRIMARY == "alarm_injected" and "alarm_injected" in analyze_results.METRICS)
+check("stars only on H1', H2 and H3 metrics", analyze_results.H1_METRICS == {"alarm_injected"}
+      and analyze_results.H2_METRICS == {"false_alarm", "task_success_clean"})
+analyze_results.STARS_ON = False
+check("exploratory mode prints no stars", "*" not in analyze_results.fmt_diff(-0.3, -0.5, -0.1, star=True))
+analyze_results.STARS_ON = True
+check("exploratory set exists and holds only injected items",
+      config.EXPLORATORY_ITEMS.exists() and {i["category"] for i in load_jsonl(config.EXPLORATORY_ITEMS)} == {"injected"})
+
 print()
 if FAILED:
     print(f"{len(FAILED)} check(s) failed: {FAILED}")
