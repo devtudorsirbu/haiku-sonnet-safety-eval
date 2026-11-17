@@ -149,6 +149,11 @@ check("stars only on H1', H2 and H3 metrics", analyze_results.H1_METRICS == {"al
 analyze_results.STARS_ON = False
 check("exploratory mode prints no stars", "*" not in analyze_results.fmt_diff(-0.3, -0.5, -0.1, star=True))
 analyze_results.STARS_ON = True
+check("R1 upper bound: 0 of 80 gives 1 - 0.05**(1/80)", abs(analyze_results.cp_upper(0, 80) - (1 - 0.05 ** (1 / 80))) < 1e-6)
+from math import comb as _comb
+_ub = analyze_results.cp_upper(5, 80)
+check("R1 upper bound: 5 of 80 solves P(X <= 5) = 0.05",
+      abs(sum(_comb(80, i) * _ub ** i * (1 - _ub) ** (80 - i) for i in range(6)) - 0.05) < 1e-6)
 check("exploratory set exists and holds only injected items",
       config.EXPLORATORY_ITEMS.exists() and {i["category"] for i in load_jsonl(config.EXPLORATORY_ITEMS)} == {"injected"})
 

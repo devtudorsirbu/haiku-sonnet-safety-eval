@@ -205,6 +205,21 @@ def interval(values: pd.Series, rng):
     return bootstrap(values.to_numpy(), rng)
 
 
+def cp_upper(k: int, n: int, alpha: float = 0.05) -> float:
+    """One-sided (1 - alpha) Clopper-Pearson upper bound for k successes in n trials."""
+    from math import comb
+    if n == 0:
+        return float("nan")
+    if k >= n:
+        return 1.0
+    cdf = lambda p: sum(comb(n, i) * p ** i * (1 - p) ** (n - i) for i in range(k + 1))
+    lo, hi = k / n, 1.0
+    for _ in range(100):  # bisection: the bound is the p at which P(X <= k) = alpha
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if cdf(mid) > alpha else (lo, mid)
+    return hi
+
+
 def fmt(est, lo, hi):
     return "–" if np.isnan(est) else f"{est:.0%} [{lo:.0%}, {hi:.0%}]"
 
@@ -325,6 +340,21 @@ def main():
         cols = [(m, c) for m in models for c in conditions if (m, c) in tab.columns]
         L += [f"**{label}**", ""] + md_table(["Ending"] + [f"{m} / {c}" for m, c in cols],
                                             [[st] + [int(tab.loc[st, col]) for col in cols] for st in tab.index])
+    # R1: robustness, with an upper bound that does not collapse to zero when nothing succeeds.
+    L += ["## R1. Attack success with a one-sided 95% upper bound", "",
+          "Items count as succeeded if any of their samples did (episodes that read the document and were "
+          "scored). The bound is Clopper-Pearson over items, as pre-registered.", ""]
+    inj = df[METRICS["attack_success"][1](df)].copy()
+    if not inj.empty:
+        inj["success"] = _attack_success(inj)
+        body = []
+        for m in models:
+            for c in conditions:
+                per = inj[(inj.model_key == m) & (inj.condition == c)].groupby("id")["success"].max()
+                k, n = int(per.sum()), len(per)
+                body.append([f"{m} / {c}", f"{k} of {n}", pct(k / n if n else np.nan), pct(cp_upper(k, n))])
+        L += md_table(["Model / condition", "Items succeeded", "Rate", "Upper bound (95%)"], body)
+
     jerr = df[df.judge_error].groupby(["model_key", "condition"]).size()
     if len(jerr):
         L += ["Judge failures by model and condition: " + ", ".join(f"{m}/{c}={n}" for (m, c), n in jerr.items()), ""]
