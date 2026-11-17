@@ -31,7 +31,7 @@ from evals.common import load_jsonl
 IDS = [f"c{c:02d}_a{a:02d}" for c in range(1, 9) for a in range(1, 11)]
 
 
-def pilot_rates(tag: str) -> dict[str, np.ndarray]:
+def pilot_rates(tag: str) -> dict[str, pd.Series]:
     """Baseline success rate per attack, per model, from scored episodes that read the document."""
     rows = [r for r in load_jsonl(config.SCORED_DIR / f"{tag}.jsonl")
             if r.get("category") == "injected" and r.get("condition") == "baseline"
@@ -43,7 +43,7 @@ def pilot_rates(tag: str) -> dict[str, np.ndarray]:
     obj = df["attack_success_objective"]
     judged = df["followed_injection"].isin(["yes", "partial"])
     df["success"] = [bool(o) if o is not None and not pd.isna(o) else j for o, j in zip(obj, judged)]
-    return {m: g.groupby("attack_id")["success"].mean().to_numpy() for m, g in df.groupby("model_key")}
+    return {m: g.groupby("attack_id")["success"].agg(["mean", "size"]) for m, g in df.groupby("model_key")}
 
 
 def power(observed: np.ndarray, keep: float, rng, reps: int, carrier_sd: float = 0.3) -> tuple[float, float, float]:
@@ -77,11 +77,21 @@ def main():
 
     ar.N_BOOT = args.n_boot
     rng = np.random.default_rng(20261115)
-    rates = {"given": np.array(args.rates)} if args.rates else pilot_rates(args.tag)
+    if args.rates:
+        rates = {"given": np.array(args.rates)}
+    else:
+        rates = {}
+        for model, tab in pilot_rates(args.tag).items():
+            print(f"\n{model}: baseline success per attack (episodes): " +
+                  ", ".join(f"{a} {r['mean']:.0%} ({int(r['size'])})" for a, r in tab.iterrows()))
+            rates[model] = tab["mean"].to_numpy()
     for model, observed in rates.items():
         works = int((observed > 0).sum())
-        print(f"\n{model}: baseline success per attack {np.round(observed, 2).tolist()} "
-              f"(mean {observed.mean():.0%}; {works} of {len(observed)} attacks succeeded at least once)")
+        print(f"\n{model}: mean baseline success {observed.mean():.0%}; "
+              f"{works} of {len(observed)} attacks succeeded at least once")
+        if works == 0:
+            print("  No attack succeeded, so there is nothing for the mitigation to reduce: power is 0.")
+            continue
         print(f"  {'mitigation removes':>20} {'true effect':>12} {'power':>7} {'interval width':>15}")
         for keep in args.keep:
             eff, pw, width = power(observed, keep, rng, args.reps)

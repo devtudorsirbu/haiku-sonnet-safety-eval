@@ -1,4 +1,4 @@
-# Usage: make test | smoke | dataset | pilot | judge-pilot | power | full | score | audit | agreement | analyze | ablation | cost
+# Usage: make test | smoke | dataset | pilot | judge-pilot | power | screen | full | score | audit | agreement | analyze | ablation | cost
 PY = python -m
 MODE ?= batch
 
@@ -48,6 +48,15 @@ ablation:
 	$(PY) evals.score_outputs --tag full --effort low --objective-only
 	$(PY) evals.score_outputs --tag full --effort high --objective-only
 
+# Difficulty screen: every injected item, baseline only, 1 sample, both models, judged.
+# About $1 with the Batch API. Development data: report it, do not pool it with the full run.
+screen: dataset
+	$(PY) evals.run_eval --input data/dataset.jsonl --tag screen --categories injected \
+		--conditions baseline --samples 1 --mode $(MODE)
+	$(PY) evals.check_raw_outputs --tag screen
+	$(PY) evals.score_outputs --tag screen --mode $(MODE)
+	$(PY) evals.power_simulation --tag screen
+
 # Power of the primary test from the pilot's baseline rates (difficulty gate): no API calls.
 power:
 	$(PY) evals.power_simulation --tag pilot
@@ -55,4 +64,4 @@ power:
 cost:
 	$(PY) evals.estimate_cost --tag full --batch
 
-.PHONY: test smoke dataset pilot judge-pilot power full score audit agreement analyze ablation cost
+.PHONY: test smoke dataset pilot judge-pilot power screen full score audit agreement analyze ablation cost
