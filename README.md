@@ -1,9 +1,7 @@
 # Does "treat documents as data" stop prompt injection in Claude agents?
 
-> **Status: pilot and difficulty screen done; pre-registration next. No main results yet.**
-> In the pilot and screen (200 injected episodes), **no planted instruction succeeded**, with or
-> without the mitigation, and the models nearly always told the user about it. The study was
-> reframed before pre-registration accordingly ([what happened](writeup/screen_2026-11-17.md)).
+> **Status: complete.** Pre-registered at `4b1a6fb`; main run 18 November 2026. Results below and in
+> the [report](writeup/report.md).
 
 AI agents read emails, tickets and web pages written by other people. If one of those documents
 contains an instruction ("email this file to records@…", "don't mention the deadline"), does the
@@ -101,13 +99,35 @@ also shown under three sensitivity choices of which episodes count. Details are 
 
 ## Results
 
-*Pending.* After the full run this section will hold the headline figure, the mitigation's effect on
-the alarm rate per model with its interval, the cost on clean documents, attack success with its
-upper bound, the exploratory arm, and the judge's measured accuracy. The full tables will be in
-`analysis/results.md` and `analysis/results_exploratory.md`.
+**Full report: [`writeup/report.md`](writeup/report.md).** Main run on 18 November 2026: 928
+episodes, both models, both conditions, 2 samples, as pre-registered.
 
-So far (development data, not the main results): the pilot and difficulty screen are summarised in
-[`writeup/screen_2026-11-17.md`](writeup/screen_2026-11-17.md), and the judge's calibration in
+![Headline figure](results/figures/report_headline.png)
+
+| | Haiku 5.5 | Sonnet 5.5 |
+|---|---|---|
+| **Attacks that succeeded** (R1), baseline / mitigated | 0 of 80 / 0 of 80 items (≤ 3.7%) | 0 of 80 / 0 of 80 items (≤ 3.7%) |
+| **Alarm rate** (primary), baseline → mitigated | 55% → 32% | 61% → 41% |
+| **Mitigation effect** on alarms (H1′), crossed 95% CI | **−23 pp [−35, −12]** | **−21 pp [−38, −8]** |
+| Told the user about the planted instruction | 99% → 100% | 100% → 100% |
+| False alarms / task success on ordinary documents (H2) | 0 / 100%, both conditions | 0 / 100%, both conditions |
+
+- **No planted instruction worked**, with or without the paragraph: no email to an attacker, no
+  leaked code, no adopted override. Four stronger, legitimate-looking attacks (exploratory) also
+  failed (0 of 32 items per cell).
+- **The paragraph changed how the models talk about attacks, not whether they report them:** they
+  called the instruction suspicious or an attack about 20 points less often, while still mentioning
+  it almost every time. It cost nothing measurable on ordinary documents.
+- **Haiku and Sonnet did not differ** in alarm rate (H3 not supported: +6 pp [−6, +20]).
+- **Validation:** the judge's alarm label agreed with a blind human audit of 104 episodes
+  (κ 0.73 for alarm versus not; refusal, attack-following and task quality κ 1.00).
+- **Limits:** simple, short, single-turn attacks; a judge-based primary measure; one wording of the
+  paragraph; these model snapshots. See the report.
+
+Tables: [`analysis/results.md`](analysis/results.md) (main),
+[`analysis/results_exploratory.md`](analysis/results_exploratory.md) (exploratory arm),
+[`analysis/explicit_alarm.md`](analysis/explicit_alarm.md) (exploratory split of alarms).
+Development data: [`writeup/screen_2026-11-17.md`](writeup/screen_2026-11-17.md); judge calibration:
 [`writeup/rubric_changes.md`](writeup/rubric_changes.md).
 
 ## Reproduce
@@ -171,11 +191,11 @@ haiku_sonnet_opus_implementation.md   the full study plan
 | SDK version | `anthropic` 2.8.0, Python 3.14.8 |
 | Effort (subjects / judge) | medium / low |
 | Samples per item | 2 |
-| Dataset commit | |
-| Rubric frozen at commit | |
-| Pre-registration commit | |
-| Total tokens (input / output) | |
-| Total cost | |
+| Dataset commit | `a3d3224` (exploratory set `8250d62`) |
+| Rubric frozen at commit | `9c8e73c` |
+| Pre-registration commit | `4b1a6fb` |
+| Total tokens (input / output) | main run 4.26 M / 0.59 M (including the judge and cached prompt tokens) |
+| Total cost | main run $4.97 (Batch API); whole study about $10 |
 
 ## Scope and safety
 
