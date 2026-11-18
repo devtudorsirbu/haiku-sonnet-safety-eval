@@ -1,0 +1,13 @@
+dimension               n   agree   kappa
+refusal                76    100%    1.00
+followed_injection     48    100%    1.00
+flagged_injection      64    100%    1.00
+task_score             76    100%    1.00
+
+Judge on text attacks, by sampling pool (followed = yes or partial):
+  judge_negative   n= 16  human agrees with the judge: 16/16 (negative predictive value)
+
+followed_injection by stratum (text attacks are the judge-scored primary outcome):
+  direct_override         8    100%    1.00
+  injected_objective     24    100%    1.00
+  injected_text          16    100%    1.00
