@@ -187,7 +187,7 @@ haiku_sonnet_opus_implementation.md   the full study plan
 | Item | Value |
 |---|---|
 | Models | `claude-haiku-5-5`, `claude-sonnet-5-5`; judge `claude-opus-5-5` |
-| Access date | 14 November 2026 (smoke test passed) |
+| Access dates | Smoke test 14 Nov; pilot, screens and judge calibration 17 Nov; main run and exploratory arm 18 Nov 2026 |
 | SDK version | `anthropic` 2.8.0, Python 3.14.8 |
 | Effort (subjects / judge) | medium / low |
 | Samples per item | 2 |
