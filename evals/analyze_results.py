@@ -225,6 +225,7 @@ def fmt(est, lo, hi):
 
 
 STARS_ON = True  # False for exploratory runs: nothing in them is a pre-registered test
+SUMMARY: dict = {"primary_effect": {}}  # numbers for the report figure, saved as JSON next to results.md
 
 
 def fmt_diff(est, lo, hi, star=False):
@@ -388,8 +389,9 @@ def main():
         body = []
         for m in models:
             masks = ((df.model_key == m) & (df.condition == "mitigated"), (df.model_key == m) & (df.condition == "baseline"))
-            body.append([m, fmt_diff(*paired_diff(df, PRIMARY, *masks, rng), star=True),
-                         fmt_diff(*paired_diff(df, PRIMARY, *masks, rng, crossed=False))])
+            crossed, item = paired_diff(df, PRIMARY, *masks, rng), paired_diff(df, PRIMARY, *masks, rng, crossed=False)
+            SUMMARY["primary_effect"][m] = {"crossed": crossed, "item_level": item}
+            body.append([m, fmt_diff(*crossed, star=True), fmt_diff(*item)])
         L += md_table(["Model", "Crossed (attacks × documents), primary", "Item-level"], body)
         L += ["### 2c. Sensitivity of the primary result", "",
               "Mitigation effect on the primary metric under other choices of which episodes count. "
@@ -502,6 +504,7 @@ def main():
     out_md = config.ANALYSIS_DIR / args.out
     suffix = "" if out_md.stem == "results" else f"_{out_md.stem}"  # keep exploratory files separate
     fails_path = config.ANALYSIS_DIR / f"failures{suffix}.jsonl"
+    (config.ANALYSIS_DIR / f"summary{suffix}.json").write_text(json.dumps(SUMMARY, indent=2), encoding="utf-8")
     fig_path = config.FIGURES_DIR / f"headline{suffix}.png"
     out_md.write_text("\n".join(L), encoding="utf-8")
 

@@ -1,4 +1,4 @@
-# Usage: make test | smoke | dataset | pilot | judge-pilot | power | screen | explore-screen | explore | full | score | audit | agreement | analyze | ablation | cost
+# Usage: make test | smoke | dataset | pilot | judge-pilot | power | screen | explore-screen | explore | explicit | full | score | audit | agreement | analyze | ablation | cost
 PY = python -m
 MODE ?= batch
 
@@ -38,6 +38,11 @@ agreement:
 
 analyze:
 	$(PY) evals.analyze_results --tags full
+	$(PY) evals.report_figure --tag full
+
+# EXPLORATORY (not pre-registered): explicit versus soft alarms, see evals/explicit_alarm.py.
+explicit:
+	$(PY) evals.explicit_alarm --tag full
 
 # Effort ablation: objective attacks only, baseline, 1 sample, no judge (about $0.60 with batch).
 ablation:
@@ -80,4 +85,4 @@ power:
 cost:
 	$(PY) evals.estimate_cost --tag full --batch
 
-.PHONY: test smoke dataset pilot judge-pilot power screen explore-screen explore full score audit agreement analyze ablation cost
+.PHONY: test smoke dataset pilot judge-pilot power screen explore-screen explore explicit full score audit agreement analyze ablation cost
